@@ -37,6 +37,8 @@ jobs:
           sudo apt-get install -y libhyperscan5
 
       - name: Download Cortex CLI and run code scan
+        id: cortex_scan
+        continue-on-error: true
         run: |
           set -x
           crtx_resp=$(curl -s "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" -H "x-xdr-auth-id: ${{ env.CORTEX_API_KEY_ID }}" -H "Authorization: ${{ env.CORTEX_API_KEY }}")
@@ -44,10 +46,24 @@ jobs:
           crtx_file=$(echo $crtx_resp | jq -r ".file_name")
           curl -o "$crtx_file" "$crtx_url"
           chmod +x "$crtx_file"
-          ./"$crtx_file" --api-base-url "${{ env.CORTEX_API_URL }}" --api-key "${{ env.CORTEX_API_KEY }}" --api-key-id "${{ env.CORTEX_API_KEY_ID }}" code scan --directory "${{ github.workspace }}" --branch main --repo-id "${{ github.repository }}" --output json --output-file-path ./output.json
-         ## echo "========== Code scan 결과 (JSON) =========="
-         ## if [ -f ./code_scan_output.json ]; then jq '.' ./code_scan_output.json 2>/dev/null || cat ./code_scan_output.json; else echo "(output file not found)"; fi
+          ./"$crtx_file" --log-level INFO --api-base-url "${{ env.CORTEX_API_URL }}" --api-key "${{ env.CORTEX_API_KEY }}" --api-key-id "${{ env.CORTEX_API_KEY_ID }}" code scan --directory "${{ github.workspace }}" --branch main --repo-id "${{ github.repository }}" --source "GITHUB_ACTIONS" --create-repo-if-missing --output json --output-file-path ./output.json > scan_log.txt 2>&1
 
+      - name: Upload Scan Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cortex-scan-results
+          path: |
+            output.json
+            scan_log.txt
+
+      - name: Check Scan Status
+        if: steps.cortex_scan.outcome == 'failure'
+        run: |
+          echo "Cortex scan failed. Please check the uploaded artifacts for details."
+          cat scan_log.txt
+          exit 1
+         
   build-image-scan-push:
     name: Build image, Cortex image scan, Push to ECR
     needs: cortex-code-scan
