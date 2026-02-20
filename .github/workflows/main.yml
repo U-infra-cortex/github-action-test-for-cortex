@@ -46,39 +46,7 @@ jobs:
           crtx_file=$(echo $crtx_resp | jq -r ".file_name")
           curl -o "$crtx_file" "$crtx_url"
           chmod +x "$crtx_file"
-          ./"$crtx_file" --log-level INFO --api-base-url "${{ env.CORTEX_API_URL }}" --api-key "${{ env.CORTEX_API_KEY }}" --api-key-id "${{ env.CORTEX_API_KEY_ID }}" code scan --directory "${{ github.workspace }}" --branch main --repo-id "${{ github.repository }}" --source "GITHUB_ACTIONS" --create-repo-if-missing --output json --output-file-path ./output.json > scan_log.txt 2>&1
-
-      - name: Upload Scan Results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cortex-scan-results
-          path: |
-            output.json
-            scan_log.txt
-
-      - name: Generate Summary and Display in Logs
-        if: always()
-        run: |
-          echo "## 🛡️ Cortex Code Scan Summary" >> $GITHUB_STEP_SUMMARY
-          echo "--- 🛡️ Cortex Code Scan Results (Log) ---"
-          if [ -f output.json ]; then
-            echo "### Findings by Severity" >> $GITHUB_STEP_SUMMARY
-            echo "| Severity | Category | Description | File |" >> $GITHUB_STEP_SUMMARY
-            echo "| --- | --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
-            # Parse findings and output to both Summary and Console
-            jq -r '.findings[] | "| \( .severity // "N/A" ) | \( .category // "N/A" ) | \( .title // "N/A" ) | \( .file_path // "N/A" ) |"' output.json | tee -a $GITHUB_STEP_SUMMARY
-            echo "----------------------------------------"
-          else
-            echo "❌ No scan results found (output.json missing)." | tee -a $GITHUB_STEP_SUMMARY
-          fi
-
-      - name: Check Scan Status
-        if: steps.cortex_scan.outcome == 'failure'
-        run: |
-          echo "Cortex scan failed. Please check the 'Summary' tab for findings or the uploaded artifacts for details."
-          if [ -f scan_log.txt ]; then cat scan_log.txt; fi
-          exit 1
+          ./"$crtx_file" --log-level INFO --api-base-url "${{ env.CORTEX_API_URL }}" --api-key "${{ env.CORTEX_API_KEY }}" --api-key-id "${{ env.CORTEX_API_KEY_ID }}" code scan --directory "${{ github.workspace }}" --branch main --repo-id "${{ github.repository }}" --source "GITHUB_ACTIONS" --create-repo-if-missing  
          
   build-image-scan-push:
     name: Build image, Cortex image scan, Push to ECR
