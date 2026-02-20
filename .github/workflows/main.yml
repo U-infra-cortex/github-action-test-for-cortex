@@ -3,7 +3,7 @@ name: Build, Scan, Push to ECR and Deploy to EC2
 on:
   push:
     branches:
-      - main
+      - branch-test
   workflow_dispatch:
 
 env:
