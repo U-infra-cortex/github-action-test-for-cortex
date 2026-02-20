@@ -57,11 +57,25 @@ jobs:
             output.json
             scan_log.txt
 
+      - name: Generate Summary
+        if: always()
+        run: |
+          echo "## 🛡️ Cortex Code Scan Summary" >> $GITHUB_STEP_SUMMARY
+          if [ -f output.json ]; then
+            echo "### Findings by Severity" >> $GITHUB_STEP_SUMMARY
+            echo "| Severity | Category | Description | File |" >> $GITHUB_STEP_SUMMARY
+            echo "| --- | --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
+            # Parse findings from output.json and format as table rows
+            jq -r '.findings[] | "| \( .severity // "N/A" ) | \( .category // "N/A" ) | \( .title // "N/A" ) | \( .file_path // "N/A" ) |"' output.json >> $GITHUB_STEP_SUMMARY || echo "No findings found or error parsing JSON." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ No scan results found (output.json missing)." >> $GITHUB_STEP_SUMMARY
+          fi
+
       - name: Check Scan Status
         if: steps.cortex_scan.outcome == 'failure'
         run: |
-          echo "Cortex scan failed. Please check the uploaded artifacts for details."
-          cat scan_log.txt
+          echo "Cortex scan failed. Please check the 'Summary' tab for findings or the uploaded artifacts for details."
+          if [ -f scan_log.txt ]; then cat scan_log.txt; fi
           exit 1
          
   build-image-scan-push:
