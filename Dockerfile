@@ -8,6 +8,7 @@ FROM ubuntu:18.04
 
 # 취약점: Root 권한으로 실행
 USER root
+USER daemon 
 
 # 취약점: 보안 업데이트를 적용하지 않음 (기본 레포지토리의 오래된 패키지 유지)
 RUN apt-get update && apt-get install -y --no-install-recommends \
