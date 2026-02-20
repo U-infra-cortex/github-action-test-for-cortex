@@ -82,10 +82,8 @@ jobs:
           crtx_file=$(echo $crtx_resp | jq -r ".file_name")
           curl -o "$crtx_file" "$crtx_url"
           chmod +x "$crtx_file"
-          ./"$crtx_file" --api-base-url "${{ env.CORTEX_API_URL }}" --api-key "${{ env.CORTEX_API_KEY }}" --api-key-id "${{ env.CORTEX_API_KEY_ID }}" image scan ${{ env.ECR_REPOSITORY }}:build --output json > scan_result.json 2>&1
-          echo "--- 스캔 결과 (원본) ---"
-          cat scan_result.json
-          jq '.' scan_result.json 2>/dev/null || true
+          ./"$crtx_file" --api-base-url "${{ env.CORTEX_API_URL }}" --api-key "${{ env.CORTEX_API_KEY }}" --api-key-id "${{ env.CORTEX_API_KEY_ID }}" image scan ${{ env.ECR_REPOSITORY }}:build --output-format json
+       
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -109,58 +107,58 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-  deploy:
-    name: Deploy to EC2 (ECR image)
-    needs: build-image-scan-push
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to EC2 via Docker (ECR 이미지 사용)
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            set -e
-            ECR_REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
-            ECR_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
-            CORTEX_API_URL="${{ env.CORTEX_API_URL }}"
-            CORTEX_API_KEY="${{ secrets.CORTEX_API_KEY }}"
-            CORTEX_API_KEY_ID="${{ secrets.CORTEX_API_KEY_ID }}"
-            # EC2에서 AWS CLI/ECR 사용을 위한 자격 증명 (IAM 인스턴스 프로파일 미사용 시)
-            export AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}"
-            export AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
-            export AWS_DEFAULT_REGION="${{ env.AWS_REGION }}"
-
-            # 1. 기존 컨테이너 정리
-            docker stop my-web-server || true
-            docker rm my-web-server || true
-
-            # 2. AWS CLI v2 설치 (Ubuntu 24.04 등에서 awscli 패키지 미제공 시 대비, 공식 바이너리 사용)
-            if ! command -v aws &>/dev/null; then
-              sudo apt-get update -qq
-              sudo apt-get install -y -qq unzip curl
-              curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-              unzip -q -o awscliv2.zip
-              sudo ./aws/install
-              rm -rf awscliv2.zip aws
-            fi
-
-            # 3. ECR 로그인 (EC2 인스턴스에 IAM 역할 또는 AWS 자격 증명 필요)
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
-
-            # 4. ECR 이미지 Pull
-            docker pull ${ECR_IMAGE}
-
-            # 5. Cortex CLI 설치 후 Pull한 이미지 스캔 (Java 11+, libhyperscan5, jq 필요)
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq openjdk-11-jre-headless libhyperscan5 jq 2>/dev/null || true
-            crtx_resp=$(curl -s "${CORTEX_API_URL}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" -H "x-xdr-auth-id: ${CORTEX_API_KEY_ID}" -H "Authorization: ${CORTEX_API_KEY}")
-            crtx_url=$(echo "$crtx_resp" | jq -r ".signed_url")
-            crtx_file=$(echo "$crtx_resp" | jq -r ".file_name")
-            curl -s -o "$crtx_file" "$crtx_url"
-            chmod +x "$crtx_file"
-            ./"$crtx_file" --api-base-url "$CORTEX_API_URL" --api-key "$CORTEX_API_KEY" --api-key-id "$CORTEX_API_KEY_ID" image scan ${ECR_IMAGE} --output json
-
-            # 6. 컨테이너 실행
-            docker run -d --name my-web-server -p 80:80 ${ECR_IMAGE}
+#  deploy:
+#    name: Deploy to EC2 (ECR image)
+#    needs: build-image-scan-push
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Deploy to EC2 via Docker (ECR 이미지 사용)
+#        uses: appleboy/ssh-action@master
+#        with:
+#          host: ${{ secrets.EC2_HOST }}
+#          username: ubuntu
+#          key: ${{ secrets.EC2_SSH_KEY }}
+#          script: |
+#            set -e
+#            ECR_REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
+#            ECR_IMAGE="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY }}:latest"
+#            CORTEX_API_URL="${{ env.CORTEX_API_URL }}"
+#            CORTEX_API_KEY="${{ secrets.CORTEX_API_KEY }}"
+#            CORTEX_API_KEY_ID="${{ secrets.CORTEX_API_KEY_ID }}"
+#            # EC2에서 AWS CLI/ECR 사용을 위한 자격 증명 (IAM 인스턴스 프로파일 미사용 시)
+#            export AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}"
+#            export AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+#            export AWS_DEFAULT_REGION="${{ env.AWS_REGION }}"
+#
+#            # 1. 기존 컨테이너 정리
+#            docker stop my-web-server || true
+#            docker rm my-web-server || true
+#
+#            # 2. AWS CLI v2 설치 (Ubuntu 24.04 등에서 awscli 패키지 미제공 시 대비, 공식 바이너리 사용)
+#            if ! command -v aws &>/dev/null; then
+#              sudo apt-get update -qq
+#              sudo apt-get install -y -qq unzip curl
+#              curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+#              unzip -q -o awscliv2.zip
+#              sudo ./aws/install
+#              rm -rf awscliv2.zip aws
+#            fi
+#
+#            # 3. ECR 로그인 (EC2 인스턴스에 IAM 역할 또는 AWS 자격 증명 필요)
+#            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+#
+#            # 4. ECR 이미지 Pull
+#            docker pull ${ECR_IMAGE}
+#
+#            # 5. Cortex CLI 설치 후 Pull한 이미지 스캔 (Java 11+, libhyperscan5, jq 필요)
+#            sudo apt-get update -qq
+#            sudo apt-get install -y -qq openjdk-11-jre-headless libhyperscan5 jq 2>/dev/null || true
+#            crtx_resp=$(curl -s "${CORTEX_API_URL}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" -H "x-xdr-auth-id: ${CORTEX_API_KEY_ID}" -H "Authorization: ${CORTEX_API_KEY}")
+#            crtx_url=$(echo "$crtx_resp" | jq -r ".signed_url")
+#            crtx_file=$(echo "$crtx_resp" | jq -r ".file_name")
+#            curl -s -o "$crtx_file" "$crtx_url"
+#            chmod +x "$crtx_file"
+#            ./"$crtx_file" --api-base-url "$CORTEX_API_URL" --api-key "$CORTEX_API_KEY" --api-key-id "$CORTEX_API_KEY_ID" image scan ${ECR_IMAGE} --output json
+#
+#            # 6. 컨테이너 실행
+#            docker run -d --name my-web-server -p 80:80 ${ECR_IMAGE}
