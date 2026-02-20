@@ -26,9 +26,9 @@
         }
 
         // 4. 안전하지 않은 외부 스크립트 로드 (HTTP 사용)
-        // const insecureScript = document.createElement('script');
-        // insecureScript.src = "http://untrusted-source.com/library.js";
-        // document.head.appendChild(insecureScript);
+        const insecureScript = document.createElement('script');
+        insecureScript.src = "http://untrusted-source.com/library.js";
+        document.head.appendChild(insecureScript);
 
         console.log("관리자 모드 활성화용 키:", AWS_SECRET_KEY);
     </script>
