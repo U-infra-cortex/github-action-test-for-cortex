@@ -57,18 +57,20 @@ jobs:
             output.json
             scan_log.txt
 
-      - name: Generate Summary
+      - name: Generate Summary and Display in Logs
         if: always()
         run: |
           echo "## 🛡️ Cortex Code Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "--- 🛡️ Cortex Code Scan Results (Log) ---"
           if [ -f output.json ]; then
             echo "### Findings by Severity" >> $GITHUB_STEP_SUMMARY
             echo "| Severity | Category | Description | File |" >> $GITHUB_STEP_SUMMARY
             echo "| --- | --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
-            # Parse findings from output.json and format as table rows
-            jq -r '.findings[] | "| \( .severity // "N/A" ) | \( .category // "N/A" ) | \( .title // "N/A" ) | \( .file_path // "N/A" ) |"' output.json >> $GITHUB_STEP_SUMMARY || echo "No findings found or error parsing JSON." >> $GITHUB_STEP_SUMMARY
+            # Parse findings and output to both Summary and Console
+            jq -r '.findings[] | "| \( .severity // "N/A" ) | \( .category // "N/A" ) | \( .title // "N/A" ) | \( .file_path // "N/A" ) |"' output.json | tee -a $GITHUB_STEP_SUMMARY
+            echo "----------------------------------------"
           else
-            echo "❌ No scan results found (output.json missing)." >> $GITHUB_STEP_SUMMARY
+            echo "❌ No scan results found (output.json missing)." | tee -a $GITHUB_STEP_SUMMARY
           fi
 
       - name: Check Scan Status
