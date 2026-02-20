@@ -48,64 +48,64 @@ jobs:
           chmod +x "$crtx_file"
           ./"$crtx_file" --api-base-url "${{ env.CORTEX_API_URL }}" --api-key "${{ env.CORTEX_API_KEY }}" --api-key-id "${{ env.CORTEX_API_KEY_ID }}" code scan --directory "${{ github.workspace }}" --branch main --repo-id "${{ github.repository }}" --source "GITHUB_ACTIONS" –output-format json --output-file-path ./output.json --upload-mode no-code
          
-  build-image-scan-push:
-    name: Build image, Cortex image scan, Push to ECR
-    needs: cortex-code-scan
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
+#  build-image-scan-push:
+#    name: Build image, Cortex image scan, Push to ECR
+#    needs: cortex-code-scan
+#    runs-on: ubuntu-latest
+#    permissions:
+#      contents: read
+#      id-token: write
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
 
-      - name: Build image
-        run: docker build -t ${{ env.ECR_REPOSITORY }}:build .
+#      - name: Build image
+#        run: docker build -t ${{ env.ECR_REPOSITORY }}:build .
 
-      - name: "Set up Java (cortexcli 요구: Java 11 이상)"
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "11"
+#      - name: "Set up Java (cortexcli 요구: Java 11 이상)"
+#        uses: actions/setup-java@v4
+#        with:
+#          distribution: temurin
+#          java-version: "11"
 
-      - name: Install Cortex CLI dependencies (libhs.so.5)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libhyperscan5
+#      - name: Install Cortex CLI dependencies (libhs.so.5)
+#        run: |
+#          sudo apt-get update
+#          sudo apt-get install -y libhyperscan5
 
-      - name: Download Cortex CLI and run image scan
-        run: |
-          set -x
-          crtx_resp=$(curl -s "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" -H "x-xdr-auth-id: ${{ env.CORTEX_API_KEY_ID }}" -H "Authorization: ${{ env.CORTEX_API_KEY }}")
-          crtx_url=$(echo $crtx_resp | jq -r ".signed_url")
-          crtx_file=$(echo $crtx_resp | jq -r ".file_name")
-          curl -o "$crtx_file" "$crtx_url"
-          chmod +x "$crtx_file"
-          ./"$crtx_file" --api-base-url "${{ env.CORTEX_API_URL }}" --api-key "${{ env.CORTEX_API_KEY }}" --api-key-id "${{ env.CORTEX_API_KEY_ID }}" image scan ${{ env.ECR_REPOSITORY }}:build 
-       
+#      - name: Download Cortex CLI and run image scan
+#        run: |
+#          set -x
+#          crtx_resp=$(curl -s "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" -H "x-xdr-auth-id: ${{ env.CORTEX_API_KEY_ID }}" -H "Authorization: ${{ env.CORTEX_API_KEY }}")
+#          crtx_url=$(echo $crtx_resp | jq -r ".signed_url")
+#          crtx_file=$(echo $crtx_resp | jq -r ".file_name")
+#          curl -o "$crtx_file" "$crtx_url"
+#          chmod +x "$crtx_file"
+#          ./"$crtx_file" --api-base-url "${{ env.CORTEX_API_URL }}" --api-key "${{ env.CORTEX_API_KEY }}" --api-key-id "${{ env.CORTEX_API_KEY_ID }}" image scan ${{ env.ECR_REPOSITORY }}:build 
+      
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+#      - name: Configure AWS credentials
+#        uses: aws-actions/configure-aws-credentials@v4
+#        with:
+#          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+#      - name: Login to Amazon ECR
+#        id: login-ecr
+#        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Tag and push image to ECR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          docker tag $ECR_REPOSITORY:build $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+#      - name: Tag and push image to ECR
+#        env:
+#          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+#          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+#          IMAGE_TAG: ${{ github.sha }}
+#        run: |
+#          docker tag $ECR_REPOSITORY:build $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+#          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+#          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+#         docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
 #  deploy:
 #    name: Deploy to EC2 (ECR image)
