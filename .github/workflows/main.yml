@@ -47,19 +47,23 @@ jobs:
         continue-on-error: true
         run: |
           set -x
-          crtx_resp=$(curl -s "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" -H "x-xdr-auth-id: ${{ env.CORTEX_API_KEY_ID }}" -H "Authorization: ${{ env.CORTEX_API_KEY }}")
+          # API 호출 및 다운로드 URL 획득
+          crtx_resp=$(curl -s "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" \
+            -H "x-xdr-auth-id: ${{ env.CORTEX_API_KEY_ID }}" \
+            -H "Authorization: ${{ env.CORTEX_API_KEY }}")
+          
           crtx_url=$(echo $crtx_resp | jq -r ".signed_url")
-          crtx_file=$(echo $crtx_resp | jq -r ".file_name")
-
+          
+          # 인증 실패 체크
           if [ "$crtx_url" == "null" ] || [ -z "$crtx_url" ]; then
-            echo "Error: Failed to get download link. Response was: $crtx_resp"
+            echo "Error: Authentication Failed. Response: $crtx_resp"
             exit 1
           fi
 
-          curl -o "$crtx_file" "$crtx_url"
-          chmod +x "$crtx_file"
-          ./"$crtx_file" --api-base-url "${{ env.CORTEX_API_URL }}" --api-key "${{ env.CORTEX_API_KEY }}" --api-key-id "${{ env.CORTEX_API_KEY_ID }}" code scan --directory "${{ github.workspace }}" --branch branch-test --repo-id "${{ github.repository }}" --source "GITHUB_ACTIONS" –output-format json --output-file-path ./output.json --upload-mode no-code
-
+          # 다운로드 및 실행 (샘플 코드처럼 파일명 고정)
+          curl -s -o cortexcli "$crtx_url"
+          chmod +x cortexcli
+          ./cortexcli --api-base-url "${{ env.CORTEX_API_URL }}" --api-key "${{ env.CORTEX_API_KEY }}" --api-key-id "${{ env.CORTEX_API_KEY_ID }}" code scan --directory "${{ github.workspace }}" --branch main --repo-id "${{ github.repository }}" --source "GITHUB_ACTIONS" --output-format json --upload-mode no-code
 
   build-image-scan-push:
     name: Build image, Cortex image scan, Push to ECR
@@ -87,29 +91,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libhyperscan5
 
-            - name: Download Cortex CLI and run code scan
-        id: cortex_scan
-        continue-on-error: true
+      - name: Download Cortex CLI and run image scan
         run: |
           set -x
-          # API 호출 및 다운로드 URL 획득
-          crtx_resp=$(curl -s "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" \
-            -H "x-xdr-auth-id: ${{ env.CORTEX_API_KEY_ID }}" \
-            -H "Authorization: ${{ env.CORTEX_API_KEY }}")
-          
+          crtx_resp=$(curl -s "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" -H "x-xdr-auth-id: ${{ env.CORTEX_API_KEY_ID }}" -H "Authorization: ${{ env.CORTEX_API_KEY }}")
           crtx_url=$(echo $crtx_resp | jq -r ".signed_url")
-          
-          # 인증 실패 체크
+          crtx_file=$(echo $crtx_resp | jq -r ".file_name")
+
           if [ "$crtx_url" == "null" ] || [ -z "$crtx_url" ]; then
-            echo "Error: Authentication Failed. Response: $crtx_resp"
+            echo "Error: Failed to get download link. Response was: $crtx_resp"
             exit 1
           fi
 
-          # 다운로드 및 실행 (샘플 코드처럼 파일명 고정)
-          curl -s -o cortexcli "$crtx_url"
-          chmod +x cortexcli
-          ./cortexcli --api-base-url "${{ env.CORTEX_API_URL }}" --api-key "${{ env.CORTEX_API_KEY }}" --api-key-id "${{ env.CORTEX_API_KEY_ID }}" code scan --directory "${{ github.workspace }}" --branch main --repo-id "${{ github.repository }}" --source "GITHUB_ACTIONS" --output-format json --upload-mode no-code
-
+          curl -o "$crtx_file" "$crtx_url"
+          chmod +x "$crtx_file"
+          ./"$crtx_file" --api-base-url "${{ env.CORTEX_API_URL }}" --api-key "${{ env.CORTEX_API_KEY }}" --api-key-id "${{ env.CORTEX_API_KEY_ID }}" image scan ${{ env.ECR_REPOSITORY }}:build 
+      
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
