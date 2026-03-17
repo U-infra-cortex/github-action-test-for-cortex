@@ -52,7 +52,9 @@ jobs:
             -H "x-xdr-auth-id: ${{ env.CORTEX_API_KEY_ID }}" \
             -H "Authorization: ${{ env.CORTEX_API_KEY }}")
           
-          crtx_url=$(echo $crtx_resp | jq -r ".signed_url")
+          crtx_url=$(echo "$crtx_resp" | jq -r ".signed_url // empty")
+          crtx_file=$(echo "$crtx_resp" | jq -r ".file_name // empty")
+
           
           # 인증 실패 체크
           if [ "$crtx_url" == "null" ] || [ -z "$crtx_url" ]; then
@@ -61,9 +63,26 @@ jobs:
           fi
 
           # 다운로드 및 실행 (샘플 코드처럼 파일명 고정)
-          curl -s -o cortexcli "$crtx_url"
-          chmod +x cortexcli
-          ./cortexcli --api-base-url "${{ env.CORTEX_API_URL }}" --api-key "${{ env.CORTEX_API_KEY }}" --api-key-id "${{ env.CORTEX_API_KEY_ID }}" code scan --directory "${{ github.workspace }}" --branch main --repo-id "${{ github.repository }}" --source "GITHUB_ACTIONS" --output-format json --upload-mode no-code
+          curl -o "$crtx_file" "$crtx_url"
+          chmod +x "$crtx_file"
+          ./"$crtx_file" --api-base-url "${{ env.CORTEX_API_URL }}" \
+            --api-key "${{ env.CORTEX_API_KEY }}" \
+            --api-key-id "${{ env.CORTEX_API_KEY_ID }}" \
+            code scan --directory "${{ github.workspace }}" \
+            --branch branch-test --repo-id "${{ github.repository }}" \
+            --source "GITHUB_ACTIONS" \
+            --output json \ # 결과를 JSON 형식으로 생성
+            --output-file-path .result.json # 스캔 결과를 .result.json 파일로 저장
+# (아래는 GitHub Actions Summary 탭에 결과를 직접 출력할 때 사용하는 옵션입니다)
+#            --output cli \
+#            --compact > scan_result.txt
+#          cat scan_result.txt
+#          head -c 1000000 scan_result.txt > $GITHUB_STEP_SUMMARY
+      
+      - name: Show scan result # 생성된 JSON 결과를 로그창에 출력하는 단계
+        run: cat .result.json
+
+
 
   build-image-scan-push:
     name: Build image, Cortex image scan, Push to ECR
