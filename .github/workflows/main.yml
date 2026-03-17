@@ -7,10 +7,11 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION: ap-northeast-2
-  CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }} ## cortex-api-key 숫자입니다.
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+  CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
   CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
-  CORTEX_API_URL: https://api-u-infra-appsec.xdr.kr.paloaltonetworks.com
+  CORTEX_API_URL: ${{ secrets.CORTEX_API_URL }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -46,7 +47,7 @@ jobs:
           CLEAN_KEY=$(echo "${{ secrets.CORTEX_API_KEY }}" | tr -d '\r\n ')
           
           # API 호출 및 다운로드 URL 획득
-          crtx_resp=$(curl -s "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" \
+          crtx_resp=$(curl -s "${{ secrets.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" \
             -H "x-xdr-auth-id: $CLEAN_ID" \
             -H "Authorization: $CLEAN_KEY")
           
@@ -62,7 +63,7 @@ jobs:
           # 다운로드 및 실행
           curl -s -o cortexcli "$crtx_url"
           chmod +x cortexcli
-          ./cortexcli --api-base-url "${{ env.CORTEX_API_URL }}" \
+          ./cortexcli --api-base-url "${{ secrets.CORTEX_API_URL }}" \
             --api-key "$CLEAN_KEY" \
             --api-key-id "$CLEAN_ID" \
             code scan --directory "${{ github.workspace }}" \
@@ -92,7 +93,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build image
-        run: docker build -t ${{ env.ECR_REPOSITORY }}:build .
+        run: docker build -t ${{ secrets.ECR_REPOSITORY }}:build .
 
       - name: "Set up Java (cortexcli 요구: Java 11 이상)"
         uses: actions/setup-java@v4
@@ -111,7 +112,7 @@ jobs:
           CLEAN_ID=$(echo "${{ secrets.CORTEX_API_KEY_ID }}" | tr -d '\r\n ')
           CLEAN_KEY=$(echo "${{ secrets.CORTEX_API_KEY }}" | tr -d '\r\n ')
 
-          crtx_resp=$(curl -s "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" \
+          crtx_resp=$(curl -s "${{ secrets.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" \
             -H "x-xdr-auth-id: $CLEAN_ID" \
             -H "Authorization: $CLEAN_KEY")
           
@@ -124,17 +125,17 @@ jobs:
 
           curl -s -o cortexcli "$crtx_url"
           chmod +x cortexcli
-          ./cortexcli --api-base-url "${{ env.CORTEX_API_URL }}" \
+          ./cortexcli --api-base-url "${{ secrets.CORTEX_API_URL }}" \
             --api-key "$CLEAN_KEY" \
             --api-key-id "$CLEAN_ID" \
-            image scan ${{ env.ECR_REPOSITORY }}:build 
+            image scan ${{ secrets.ECR_REPOSITORY }}:build 
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -143,7 +144,7 @@ jobs:
       - name: Tag and push image to ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker tag $ECR_REPOSITORY:build $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
@@ -164,11 +165,11 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Update Kubeconfig
         run: |
-          aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+          aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }} --region ${{ secrets.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -177,7 +178,7 @@ jobs:
       - name: Deploy to EKS
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           # Deployment의 이미지 업데이트
