@@ -37,38 +37,40 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libhyperscan5
 
-            - name: Download Cortex CLI and run code scan
+      - name: Download Cortex CLI and run code scan
         id: cortex_scan
         continue-on-error: true
         run: |
-          # 1. 모든 종류의 공백(줄바꿈 포함)을 Bash 내부 기능으로 제거
-          # ID가 '2'라면 길이를 정확히 1로 강제 조정합니다.
-          CLEAN_ID="${CORTEX_API_KEY_ID//[$'\t\r\n ']}"
-          CLEAN_KEY="${CORTEX_API_KEY//[$'\t\r\n ']}"
+          set -x
+          # [핵심] 시크릿 값에서 공백 및 줄바꿈을 강제로 제거 (사용자 키 ID가 2인데 length가 2로 나오는 문제 방지)
+          CLEAN_ID=$(echo "${{ secrets.CORTEX_API_KEY_ID }}" | tr -d '\r\n ')
+          CLEAN_KEY=$(echo "${{ secrets.CORTEX_API_KEY }}" | tr -d '\r\n ')
           
-          # 2. 제조사 샘플과 동일한 형식으로 호출 (정제된 변수 사용)
-          crtx_resp=$(curl -s "${CORTEX_API_URL}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" \
+          # API 호출 및 다운로드 URL 획득
+          crtx_resp=$(curl -s "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" \
             -H "x-xdr-auth-id: $CLEAN_ID" \
             -H "Authorization: $CLEAN_KEY")
           
           crtx_url=$(echo "$crtx_resp" | jq -r ".signed_url // empty")
           crtx_file=$(echo "$crtx_resp" | jq -r ".file_name // empty")
           
-          if [ -z "$crtx_url" ] || [ "$crtx_url" == "null" ]; then
-            echo "Error: Authentication Failed. Response from Cortex: $crtx_resp"
+          # 인증 실패 체크
+          if [ "$crtx_url" == "null" ] || [ -z "$crtx_url" ]; then
+            echo "Error: Authentication Failed. Response content: $crtx_resp"
             exit 1
           fi
 
-          curl -s -o "$crtx_file" "$crtx_url"
-          chmod +x "$crtx_file"
-          ./"$crtx_file" --api-base-url "${{ env.CORTEX_API_URL }}" \
+          # 다운로드 및 실행
+          curl -s -o cortexcli "$crtx_url"
+          chmod +x cortexcli
+          ./cortexcli --api-base-url "${{ env.CORTEX_API_URL }}" \
             --api-key "$CLEAN_KEY" \
             --api-key-id "$CLEAN_ID" \
             code scan --directory "${{ github.workspace }}" \
             --branch branch-test --repo-id "${{ github.repository }}" \
             --source "GITHUB_ACTIONS" \
-            --output json --output-file-path .result.json
-
+            --output json \
+            --output-file-path .result.json
       
       - name: Show scan result
         run: |
