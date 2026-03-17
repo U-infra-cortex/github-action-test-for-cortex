@@ -48,22 +48,21 @@ jobs:
           CLEAN_ID=$(echo "${{ secrets.CORTEX_API_KEY_ID }}" | tr -d '[:space:]')
           CLEAN_KEY=$(echo "${{ secrets.CORTEX_API_KEY }}" | tr -d '[:space:]')
 
-          # API 호출 (응답 헤더와 본문을 모두 확인하기 위해 -i 사용)
+          # [디버그] 길이 확인 (ID는 짧아야 하고, KEY는 128자여야 합니다)
+          echo "Debug: CORTEX_API_KEY_ID Length = ${#CLEAN_ID} (Should be short, e.g., 1-5)"
+          echo "Debug: CORTEX_API_KEY Length = ${#CLEAN_KEY} (Should be long, e.g., 128)"
+
+          # API 호출
           crtx_resp=$(curl -v -s "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" \
             -H "x-xdr-auth-id: $CLEAN_ID" \
             -H "Authorization: $CLEAN_KEY")
-          
-          echo "Debug: Cleaned ID Length = ${#CLEAN_ID}"
           
           crtx_url=$(echo "$crtx_resp" | jq -r ".signed_url // empty")
           crtx_file=$(echo "$crtx_resp" | jq -r ".file_name // empty")
 
           if [ -z "$crtx_url" ] || [ "$crtx_url" = "null" ]; then
-            echo "Error: 401 Unauthorized or Empty Response. Please check if:"
-            echo "1. API Key Type is 'Advanced' (Required for some endpoints)"
-            echo "2. IP Restrictions are set to 'Anywhere' in Cortex Console"
-            echo "3. API Key ID and Key are not swapped"
-            echo "API raw response: $crtx_resp"
+            echo "Error: 401 Unauthorized. Key/ID mismatch suspected."
+            echo "Please check GitHub Secrets: ID should be a number, KEY should be the long string."
             exit 1
           fi
 
