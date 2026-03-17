@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: github-action-test-deployment
+  namespace: git-hub-workflow
+  labels:
+    app.kubernetes.io/name: github-action-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: github-action-test
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: github-action-test
+    spec:
+      containers:
+        - name: github-action-test-container
+          image: public.ecr.aws/docker/library/ubuntu:20.04
+          imagePullPolicy: IfNotPresent
+          command: ["sleep", "infinity"]
+

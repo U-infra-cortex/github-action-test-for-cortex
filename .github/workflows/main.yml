@@ -8,11 +8,18 @@ on:
 
 env:
   AWS_REGION: ap-northeast-2
+  # Opt in to Node.js 24 runtime for JS actions early (GitHub runner change in 2026)
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }} 
   CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
   CORTEX_API_URL: https://api-u-infra-appsec.xdr.kr.paloaltonetworks.com
   # IMPORTANT: repository name only (no registry prefix). e.g. "my-app"
   ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+  # EKS deploy target (override via GitHub secrets if needed)
+  EKS_NAMESPACE: ${{ secrets.EKS_NAMESPACE }}
+  EKS_DEPLOYMENT_NAME: ${{ secrets.EKS_DEPLOYMENT_NAME }}
+  EKS_CONTAINER_NAME: ${{ secrets.EKS_CONTAINER_NAME }}
+
 
 jobs:
   cortex-code-scan:
@@ -225,14 +232,37 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Apply Kubernetes manifests
+        run: |
+          set -euo pipefail
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/deployment.yaml
+
       - name: Deploy to EKS
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
+          set -euo pipefail
+
           # Deployment의 이미지 업데이트
           CLEAN_ECR_REPOSITORY="$(echo '${{ env.ECR_REPOSITORY }}' | tr -d '[:space:]')"
-          kubectl set image deployment/github-action-test-deployment github-action-test-container=$ECR_REGISTRY/${CLEAN_ECR_REPOSITORY}:$IMAGE_TAG
+          NAMESPACE="$(echo '${{ env.EKS_NAMESPACE }}' | tr -d '[:space:]')"
+          DEPLOYMENT_NAME="$(echo '${{ env.EKS_DEPLOYMENT_NAME }}' | tr -d '[:space:]')"
+          CONTAINER_NAME="$(echo '${{ env.EKS_CONTAINER_NAME }}' | tr -d '[:space:]')"
+
+          if [ -z "$NAMESPACE" ]; then NAMESPACE="git-hub-workflow"; fi
+          if [ -z "$DEPLOYMENT_NAME" ]; then DEPLOYMENT_NAME="github-action-test-deployment"; fi
+          if [ -z "$CONTAINER_NAME" ]; then CONTAINER_NAME="github-action-test-container"; fi
+
+          if ! kubectl get deployment -n "$NAMESPACE" "$DEPLOYMENT_NAME" >/dev/null 2>&1; then
+            echo "Error: deployment not found: namespace=$NAMESPACE name=$DEPLOYMENT_NAME"
+            echo "Existing deployments across all namespaces:"
+            kubectl get deployments -A
+            exit 1
+          fi
+
+          kubectl set image -n "$NAMESPACE" "deployment/$DEPLOYMENT_NAME" "$CONTAINER_NAME=$ECR_REGISTRY/${CLEAN_ECR_REPOSITORY}:$IMAGE_TAG"
           
           # 배포 상태 확인
-          kubectl rollout status deployment/github-action-test-deployment
+          kubectl rollout status -n "$NAMESPACE" "deployment/$DEPLOYMENT_NAME"
