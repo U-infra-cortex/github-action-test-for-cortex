@@ -8,8 +8,7 @@ on:
 
 env:
   AWS_REGION: ap-northeast-2
-  ECR_REPOSITORY: github-action-test-for-cortex
-  CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }}
+  CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }} ## cortex-api-key 숫자입니다.
   CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
   CORTEX_API_URL: https://api-u-infra-appsec.xdr.kr.paloaltonetworks.com
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
