@@ -44,24 +44,28 @@ jobs:
         id: cortex_scan
         continue-on-error: true
         run: |
-          set -x
-          crtx_resp=$(curl -s "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" \
-            -H "x-xdr-auth-id: ${{ env.CORTEX_API_KEY_ID }}" \
-            -H "Authorization: ${{ env.CORTEX_API_KEY }}")
+          # [정제] 시크릿 값에서 공백 및 줄바꿈 제거 (안정성 확보)
+          CLEAN_ID=$(echo "${{ env.CORTEX_API_KEY_ID }}" | tr -d '\r\n ')
+          CLEAN_KEY=$(echo "${{ env.CORTEX_API_KEY }}" | tr -d '\r\n ')
+
+          # API 호출 (디버깅을 위해 -s 제거 및 -v 추가)
+          crtx_resp=$(curl -v "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" \
+            -H "x-xdr-auth-id: $CLEAN_ID" \
+            -H "Authorization: $CLEAN_KEY")
           
           crtx_url=$(echo "$crtx_resp" | jq -r ".signed_url // empty")
           crtx_file=$(echo "$crtx_resp" | jq -r ".file_name // empty")
 
           if [ -z "$crtx_url" ] || [ "$crtx_url" = "null" ]; then
-            echo "Error: Failed to get download URL. API response: $crtx_resp"
+            echo "Error: Failed to get download URL. API response was: $crtx_resp"
             exit 1
           fi
 
           curl -s -o "$crtx_file" "$crtx_url"
           chmod +x "$crtx_file"
           ./"$crtx_file" --api-base-url "${{ env.CORTEX_API_URL }}" \
-            --api-key "${{ env.CORTEX_API_KEY }}" \
-            --api-key-id "${{ env.CORTEX_API_KEY_ID }}" \
+            --api-key "$CLEAN_KEY" \
+            --api-key-id "$CLEAN_ID" \
             code scan --directory "${{ github.workspace }}" \
             --branch branch-test --repo-id "${{ github.repository }}" \
             --source "GITHUB_ACTIONS" \
