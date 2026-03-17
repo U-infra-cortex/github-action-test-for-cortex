@@ -41,15 +41,10 @@ jobs:
         id: cortex_scan
         continue-on-error: true
         run: |
-          set -x
-          # [핵심] 시크릿 값에서 공백 및 줄바꿈을 강제로 제거 (사용자 키 ID가 2인데 length가 2로 나오는 문제 방지)
-          CLEAN_ID=$(echo "${{ secrets.CORTEX_API_KEY_ID }}" | tr -d '\r\n ')
-          CLEAN_KEY=$(echo "${{ secrets.CORTEX_API_KEY }}" | tr -d '\r\n ')
-          
           # API 호출 및 다운로드 URL 획득
           crtx_resp=$(curl -s "${{ secrets.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" \
-            -H "x-xdr-auth-id: $CLEAN_ID" \
-            -H "Authorization: $CLEAN_KEY")
+            -H "x-xdr-auth-id: ${{ secrets.CORTEX_API_KEY_ID }}" \
+            -H "Authorization: ${{ secrets.CORTEX_API_KEY }}")
           
           crtx_url=$(echo "$crtx_resp" | jq -r ".signed_url // empty")
           crtx_file=$(echo "$crtx_resp" | jq -r ".file_name // empty")
