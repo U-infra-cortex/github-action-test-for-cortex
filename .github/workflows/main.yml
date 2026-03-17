@@ -41,7 +41,7 @@ jobs:
         id: cortex_scan
         continue-on-error: true
         run: |
-          # API 호출 및 다운로드 URL 획득
+          set -x
           crtx_resp=$(curl -s "${{ secrets.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" \
             -H "x-xdr-auth-id: ${{ secrets.CORTEX_API_KEY_ID }}" \
             -H "Authorization: ${{ secrets.CORTEX_API_KEY }}")
@@ -49,11 +49,11 @@ jobs:
           crtx_url=$(echo "$crtx_resp" | jq -r ".signed_url // empty")
           crtx_file=$(echo "$crtx_resp" | jq -r ".file_name // empty")
           
-          # 인증 실패 체크
-          if [ "$crtx_url" == "null" ] || [ -z "$crtx_url" ]; then
-            echo "Error: Authentication Failed. Response content: $crtx_resp"
+          if [ -z "$crtx_url" ] || [ "$crtx_url" = "null" ]; then
+            echo "Error: Failed to get download URL. API response: $crtx_resp"
             exit 1
           fi
+
 
           # 다운로드 및 실행
           curl -s -o cortexcli "$crtx_url"
