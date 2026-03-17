@@ -11,6 +11,7 @@ env:
   CORTEX_API_KEY: ${{ secrets.CORTEX_API_KEY }} 
   CORTEX_API_KEY_ID: ${{ secrets.CORTEX_API_KEY_ID }}
   CORTEX_API_URL: https://api-u-infra-appsec.xdr.kr.paloaltonetworks.com
+  # IMPORTANT: repository name only (no registry prefix). e.g. "my-app"
   ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
 
 jobs:
@@ -96,19 +97,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Trim AWS and ECR Secrets
+      - name: Normalize ECR repository name
         run: |
-          echo "CLEAN_AWS_ID=$(echo '${{ secrets.AWS_ACCESS_KEY_ID }}' | tr -d '[:space:]')" >> $GITHUB_ENV
-          echo "CLEAN_AWS_KEY=$(echo '${{ secrets.AWS_SECRET_ACCESS_KEY }}' | tr -d '[:space:]')" >> $GITHUB_ENV
-          echo "CLEAN_ECR_REPOSITORY=$(echo '${{ secrets.ECR_REPOSITORY }}' | tr -d '[:space:]')" >> $GITHUB_ENV
-
-      - name: Build image
-        run: |
+          set -euo pipefail
+          CLEAN_ECR_REPOSITORY="$(echo '${{ env.ECR_REPOSITORY }}' | tr -d '[:space:]')"
           if [ -z "$CLEAN_ECR_REPOSITORY" ]; then
-            echo "Error: CLEAN_ECR_REPOSITORY is empty"
+            echo "Error: ECR_REPOSITORY is empty. Check GitHub secret ECR_REPOSITORY."
             exit 1
           fi
-          docker build -t $CLEAN_ECR_REPOSITORY:build .
+          if echo "$CLEAN_ECR_REPOSITORY" | grep -q '/'; then
+            echo "Error: ECR_REPOSITORY must be repository name only (no registry prefix). Got: $CLEAN_ECR_REPOSITORY"
+            echo "Example: github-action-test-for-cortex"
+            exit 1
+          fi
+          echo "CLEAN_ECR_REPOSITORY=$CLEAN_ECR_REPOSITORY" >> "$GITHUB_ENV"
+
+      - name: Build image
+        run: docker build -t ${{ env.CLEAN_ECR_REPOSITORY }}:build .
 
       - name: "Set up Java (cortexcli 요구: Java 11 이상)"
         uses: actions/setup-java@v4
@@ -145,32 +150,48 @@ jobs:
           ./cortexcli --api-base-url "${{ env.CORTEX_API_URL }}" \
             --api-key "$CLEAN_KEY" \
             --api-key-id "$CLEAN_ID" \
-            image scan $CLEAN_ECR_REPOSITORY:build 
+            image scan ${{ env.CLEAN_ECR_REPOSITORY }}:build
+
+      - name: Trim AWS Secrets
+        run: |
+          CLEAN_ID=$(echo '${{ secrets.AWS_ACCESS_KEY_ID }}' | tr -d '[:space:]')
+          CLEAN_KEY=$(echo '${{ secrets.AWS_SECRET_ACCESS_KEY }}' | tr -d '[:space:]')
+          echo "Debug: AWS ID Length = ${#CLEAN_ID} (Normally 20)"
+          echo "Debug: AWS KEY Length = ${#CLEAN_KEY} (Normally 40)"
+          echo "CLEAN_AWS_ID=$CLEAN_ID" >> $GITHUB_ENV
+          echo "CLEAN_AWS_KEY=$CLEAN_KEY" >> $GITHUB_ENV
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ env.CLEAN_AWS_ID }}
           aws-secret-access-key: ${{ env.CLEAN_AWS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Verify AWS identity
-        run: aws sts get-caller-identity
 
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Ensure ECR repository exists
+        run: |
+          set -euo pipefail
+          aws ecr describe-repositories \
+            --region "${{ env.AWS_REGION }}" \
+            --repository-names "${{ env.CLEAN_ECR_REPOSITORY }}" >/dev/null 2>&1 \
+          || aws ecr create-repository \
+            --region "${{ env.AWS_REGION }}" \
+            --repository-name "${{ env.CLEAN_ECR_REPOSITORY }}" >/dev/null
 
       - name: Tag and push image to ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker tag $CLEAN_ECR_REPOSITORY:build $ECR_REGISTRY/$CLEAN_ECR_REPOSITORY:$IMAGE_TAG
-          docker tag $ECR_REGISTRY/$CLEAN_ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$CLEAN_ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$CLEAN_ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$CLEAN_ECR_REPOSITORY:latest
+          set -euo pipefail
+          docker tag "${{ env.CLEAN_ECR_REPOSITORY }}:build" "$ECR_REGISTRY/${{ env.CLEAN_ECR_REPOSITORY }}:$IMAGE_TAG"
+          docker tag "$ECR_REGISTRY/${{ env.CLEAN_ECR_REPOSITORY }}:$IMAGE_TAG" "$ECR_REGISTRY/${{ env.CLEAN_ECR_REPOSITORY }}:latest"
+          docker push "$ECR_REGISTRY/${{ env.CLEAN_ECR_REPOSITORY }}:$IMAGE_TAG"
+          docker push "$ECR_REGISTRY/${{ env.CLEAN_ECR_REPOSITORY }}:latest"
 
   deploy:
     name: Deploy to EKS
@@ -180,22 +201,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Trim AWS and ECR Secrets
+      - name: Trim AWS Secrets
         run: |
-          echo "CLEAN_AWS_ID=$(echo '${{ secrets.AWS_ACCESS_KEY_ID }}' | tr -d '[:space:]')" >> $GITHUB_ENV
-          echo "CLEAN_AWS_KEY=$(echo '${{ secrets.AWS_SECRET_ACCESS_KEY }}' | tr -d '[:space:]')" >> $GITHUB_ENV
-          echo "CLEAN_ECR_REPOSITORY=$(echo '${{ secrets.ECR_REPOSITORY }}' | tr -d '[:space:]')" >> $GITHUB_ENV
+          CLEAN_ID=$(echo '${{ secrets.AWS_ACCESS_KEY_ID }}' | tr -d '[:space:]')
+          CLEAN_KEY=$(echo '${{ secrets.AWS_SECRET_ACCESS_KEY }}' | tr -d '[:space:]')
+          echo "Debug: AWS ID Length = ${#CLEAN_ID} (Normally 20)"
+          echo "Debug: AWS KEY Length = ${#CLEAN_KEY} (Normally 40)"
+          echo "CLEAN_AWS_ID=$CLEAN_ID" >> $GITHUB_ENV
+          echo "CLEAN_AWS_KEY=$CLEAN_KEY" >> $GITHUB_ENV
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ env.CLEAN_AWS_ID }}
           aws-secret-access-key: ${{ env.CLEAN_AWS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Verify AWS identity
-        run: aws sts get-caller-identity
 
       - name: Update Kubeconfig
         run: |
@@ -211,7 +231,8 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           # Deployment의 이미지 업데이트
-          kubectl set image deployment/github-action-test-deployment github-action-test-container=$ECR_REGISTRY/$CLEAN_ECR_REPOSITORY:$IMAGE_TAG
+          CLEAN_ECR_REPOSITORY="$(echo '${{ env.ECR_REPOSITORY }}' | tr -d '[:space:]')"
+          kubectl set image deployment/github-action-test-deployment github-action-test-container=$ECR_REGISTRY/${CLEAN_ECR_REPOSITORY}:$IMAGE_TAG
           
           # 배포 상태 확인
           kubectl rollout status deployment/github-action-test-deployment
