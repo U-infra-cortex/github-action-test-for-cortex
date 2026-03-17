@@ -43,8 +43,8 @@ jobs:
         run: |
           set -x
           crtx_resp=$(curl -s "${{ secrets.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" \
-            -H "x-xdr-auth-id: ${{ secrets.CORTEX_API_KEY }}" \
-            -H "Authorization: ${{ secrets.CORTEX_API_KEY_ID }}")
+            -H "x-xdr-auth-id: ${{ secrets.CORTEX_API_KEY_ID }}" \
+            -H "Authorization: ${{ secrets.CORTEX_API_KEY }}")
           
           crtx_url=$(echo "$crtx_resp" | jq -r ".signed_url // empty")
           crtx_file=$(echo "$crtx_resp" | jq -r ".file_name // empty")
