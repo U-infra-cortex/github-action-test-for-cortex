@@ -48,10 +48,10 @@ jobs:
           ./"$crtx_file" --api-base-url "${{ env.CORTEX_API_URL }}" --api-key "${{ env.CORTEX_API_KEY }}" --api-key-id "${{ env.CORTEX_API_KEY_ID }}" code scan --directory "${{ github.workspace }}" --branch main --repo-id "${{ github.repository }}" --source "GITHUB_ACTIONS" –output-format json --output-file-path ./output.json --upload-mode no-code
          
           # URL이 null이면 중단하도록 추가
-if [ "$crtx_url" == "null" ] || [ -z "$crtx_url" ]; then
-  echo "Error: Failed to get download link. Response was: $crtx_resp"
-  exit 1
-fi
+          if [ "$crtx_url" == "null" ] || [ -z "$crtx_url" ]; then
+            echo "Error: Failed to get download link. Response was: $crtx_resp"
+            exit 1
+          fi
 
 
   build-image-scan-push:
