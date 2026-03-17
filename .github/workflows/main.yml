@@ -85,7 +85,8 @@ jobs:
 
       - name: Show scan result # 생성된 JSON 결과를 로그창에 출력하는 단계
         run: cat .result.json
- build-image-scan-push:
+
+  build-image-scan-push:
     name: Build image, Cortex image scan, Push to ECR
     needs: cortex-code-scan
     runs-on: ubuntu-latest
