@@ -3,7 +3,7 @@ name: Code Scan with Cortex
 on:
   push:
     branches:
-      - main
+      - branch-test
   workflow_dispatch:
 
 env:
