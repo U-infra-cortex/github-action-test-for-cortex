@@ -3,12 +3,11 @@
 # 프로덕션 환경에서는 사용하지 마세요.
 # ============================================================
 
-# 취약점 테스트: 오래된 베이스 이미지 사용 (알려진 CVE 다수)
-FROM ubuntu:18.04
+# 취약점 테스트: 비교적 오래된 베이스 이미지 사용 (알려진 CVE 다수 포함)
+FROM ubuntu:20.04
 
-# 취약점: Root 권한으로 실행
+# 취약점: Root 권한으로 실행 (패키지 설치를 위해 root 유지)
 USER root
-USER daemon 
 
 # 취약점: 보안 업데이트를 적용하지 않음 (기본 레포지토리의 오래된 패키지 유지)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -25,6 +24,9 @@ RUN chmod 777 /tmp 2>/dev/null || true
 
 # 스캔 테스트용 더미 파일 (실제 서비스는 index.html 등으로 대체 가능)
 RUN echo "Vulnerability scan test image" > /app.txt
+
+# 취약점 테스트용 사용자 전환
+USER daemon
 WORKDIR /
 
 # 참고: ubuntu:18.04 EOL로 인해 더 많은 CVE가 보고될 수 있음.
