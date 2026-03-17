@@ -114,15 +114,25 @@ jobs:
 
       - name: Download Cortex CLI and run image scan
         run: |
-          set -x
-          crtx_resp=$(curl -s "${{ secrets.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" \
-            -H "x-xdr-auth-id: ${{ secrets.CORTEX_API_KEY_ID }}" \
-            -H "Authorization: ${{ secrets.CORTEX_API_KEY }}")
+          # [정제] 모든 종류의 공백(탭, 줄바꿈, 스페이스)을 확실히 제거
+          CLEAN_ID=$(echo "${{ secrets.CORTEX_API_KEY_ID }}" | tr -d '[:space:]')
+          CLEAN_KEY=$(echo "${{ secrets.CORTEX_API_KEY }}" | tr -d '[:space:]')
+
+          # [디버그] 길이 확인 (ID는 짧아야 하고, KEY는 128자여야 합니다)
+          echo "Debug: CORTEX_API_KEY_ID Length = ${#CLEAN_ID} (Should be short, e.g., 1-5)"
+          echo "Debug: CORTEX_API_KEY Length = ${#CLEAN_KEY} (Should be long, e.g., 128)"
+
+          # API 호출
+          crtx_resp=$(curl -v -s "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" \
+            -H "x-xdr-auth-id: $CLEAN_ID" \
+            -H "Authorization: $CLEAN_KEY")
           
           crtx_url=$(echo "$crtx_resp" | jq -r ".signed_url // empty")
+          crtx_file=$(echo "$crtx_resp" | jq -r ".file_name // empty")
 
-          if [ "$crtx_url" == "null" ] || [ -z "$crtx_url" ]; then
-            echo "Error: Failed to get download link. Response: $crtx_resp"
+          if [ -z "$crtx_url" ] || [ "$crtx_url" = "null" ]; then
+            echo "Error: 401 Unauthorized. Key/ID mismatch suspected."
+            echo "Please check GitHub Secrets: ID should be a number, KEY should be the long string."
             exit 1
           fi
 
