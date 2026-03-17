@@ -21,14 +21,6 @@ jobs:
       id-token: write
 
     steps:
-      - name: Debug Secret presence
-        run: |
-          if [ -z "${{ secrets.CORTEX_API_KEY_ID }}" ]; then echo "ID is empty"; else echo "ID is present, length: ${#ID}" ; fi
-          if [ -z "${{ secrets.CORTEX_API_KEY }}" ]; then echo "KEY is empty"; else echo "KEY is present, length: ${#KEY}" ; fi
-        env:
-          ID: ${{ secrets.CORTEX_API_KEY_ID }}
-          KEY: ${{ secrets.CORTEX_API_KEY }}
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -42,6 +34,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libhyperscan5
+      - name: Debug Secret presence
+        run: |
+          if [ -z "${{ secrets.CORTEX_API_KEY_ID }}" ]; then echo "ID is empty"; else echo "ID is present, length: ${#ID}" ; fi
+          if [ -z "${{ secrets.CORTEX_API_KEY }}" ]; then echo "KEY is empty"; else echo "KEY is present, length: ${#KEY}" ; fi
+        env:
+          ID: ${{ secrets.CORTEX_API_KEY_ID }}
+          KEY: ${{ secrets.CORTEX_API_KEY }}
 
       - name: Download Cortex CLI and run code scan
         id: cortex_scan
