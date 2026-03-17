@@ -43,15 +43,15 @@ jobs:
           crtx_resp=$(curl -s "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" -H "x-xdr-auth-id: ${{ env.CORTEX_API_KEY_ID }}" -H "Authorization: ${{ env.CORTEX_API_KEY }}")
           crtx_url=$(echo $crtx_resp | jq -r ".signed_url")
           crtx_file=$(echo $crtx_resp | jq -r ".file_name")
-          curl -o "$crtx_file" "$crtx_url"
-          chmod +x "$crtx_file"
-          ./"$crtx_file" --api-base-url "${{ env.CORTEX_API_URL }}" --api-key "${{ env.CORTEX_API_KEY }}" --api-key-id "${{ env.CORTEX_API_KEY_ID }}" code scan --directory "${{ github.workspace }}" --branch main --repo-id "${{ github.repository }}" --source "GITHUB_ACTIONS" –output-format json --output-file-path ./output.json --upload-mode no-code
-         
-          # URL이 null이면 중단하도록 추가
+
           if [ "$crtx_url" == "null" ] || [ -z "$crtx_url" ]; then
             echo "Error: Failed to get download link. Response was: $crtx_resp"
             exit 1
           fi
+
+          curl -o "$crtx_file" "$crtx_url"
+          chmod +x "$crtx_file"
+          ./"$crtx_file" --api-base-url "${{ env.CORTEX_API_URL }}" --api-key "${{ env.CORTEX_API_KEY }}" --api-key-id "${{ env.CORTEX_API_KEY_ID }}" code scan --directory "${{ github.workspace }}" --branch branch-test --repo-id "${{ github.repository }}" --source "GITHUB_ACTIONS" –output-format json --output-file-path ./output.json --upload-mode no-code
 
 
   build-image-scan-push:
@@ -86,6 +86,12 @@ jobs:
           crtx_resp=$(curl -s "${{ env.CORTEX_API_URL }}/public_api/v1/unified-cli/releases/download-link?os=linux&architecture=amd64" -H "x-xdr-auth-id: ${{ env.CORTEX_API_KEY_ID }}" -H "Authorization: ${{ env.CORTEX_API_KEY }}")
           crtx_url=$(echo $crtx_resp | jq -r ".signed_url")
           crtx_file=$(echo $crtx_resp | jq -r ".file_name")
+
+          if [ "$crtx_url" == "null" ] || [ -z "$crtx_url" ]; then
+            echo "Error: Failed to get download link. Response was: $crtx_resp"
+            exit 1
+          fi
+
           curl -o "$crtx_file" "$crtx_url"
           chmod +x "$crtx_file"
           ./"$crtx_file" --api-base-url "${{ env.CORTEX_API_URL }}" --api-key "${{ env.CORTEX_API_KEY }}" --api-key-id "${{ env.CORTEX_API_KEY_ID }}" image scan ${{ env.ECR_REPOSITORY }}:build 
