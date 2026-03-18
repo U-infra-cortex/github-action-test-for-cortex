@@ -158,6 +158,8 @@ jobs:
             --api-key "$CLEAN_KEY" \
             --api-key-id "$CLEAN_ID" \
             image scan ${{ env.CLEAN_ECR_REPOSITORY }}:build \
+            --repo-id "${{ github.repository }}" \
+            --directory "${{ github.workspace }}" \
             --ci-pipeline-id "${{ github.run_id }}" \
             --ci-build-id "${{ github.run_number }}"
 
