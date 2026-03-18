@@ -82,6 +82,8 @@ jobs:
             code scan --directory "${{ github.workspace }}" \
             --branch branch-test --repo-id "${{ github.repository }}" \
             --source "GITHUB_ACTIONS" \
+            --repo-id "${{ github.repository }}" \
+            --directory "${{ github.workspace }}" \
             --output json \
             --output-file-path .result.json
 # (아래는 GitHub Actions Summary 탭에 결과를 직접 출력할 때 사용하는 옵션입니다)
@@ -158,8 +160,6 @@ jobs:
             --api-key "$CLEAN_KEY" \
             --api-key-id "$CLEAN_ID" \
             image scan ${{ env.CLEAN_ECR_REPOSITORY }}:build \
-            --repo-id "${{ github.repository }}" \
-            --directory "${{ github.workspace }}" \
             --ci-pipeline-id "${{ github.run_id }}" \
             --ci-build-id "${{ github.run_number }}"
 
